@@ -57,6 +57,7 @@ function renderRows() {
   list.scrollTop = st;
   $('#runAll').disabled = !files.some(f => f.status === 'wait' || f.status === 'fail');
   $('#clear').disabled = !files.some(f => f.status === 'done');
+  if (!zipping) $('#zipAll').disabled = !files.some(f => f.status === 'done' && f.result);
 }
 function paintProgress(f) {
   const r = rowEl(f.id); if (!r) return;
@@ -245,9 +246,51 @@ function disposeResult(f) {
 }
 function download(f) {
   if (!f.result) return;
+  saveAs(f.result.url, f.result.name);
+}
+function saveAs(url, name) {
   const a = document.createElement('a');
-  a.href = f.result.url; a.download = f.result.name;
+  a.href = url; a.download = name;
   document.body.appendChild(a); a.click(); a.remove();
+}
+
+/* ---------- 모두 받기 (ZIP 하나로) ---------- */
+const ZIP_LIMIT = 1.5 * 1024 ** 3; // 브라우저 메모리 안에서 묶으므로 이보다 크면 하나씩 받게 한다
+let zipping = false;
+async function downloadAll() {
+  const done = files.filter(f => f.status === 'done' && f.result);
+  if (!done.length || zipping) return;
+  if (done.length === 1) { download(done[0]); return; }
+  const total = done.reduce((a, f) => a + f.result.blob.size, 0);
+  if (total > ZIP_LIMIT) { toast(`합계 ${(total / 1024 ** 3).toFixed(1)}GB라 ZIP으로 묶을 수 없어요. 하나씩 받아 주세요`); return; }
+  const btn = $('#zipAll'), label = btn.querySelector('span');
+  zipping = true; btn.disabled = true; btn.classList.add('busy');
+  try {
+    const JSZip = (await import('jszip')).default;
+    const zip = new JSZip();
+    const used = new Set();
+    for (const f of done) {
+      // 같은 이름이 있으면 "이름 (2).pdf"처럼 번호를 붙인다
+      let name = f.result.name.replace(/[\\/:*?"<>|]/g, '_');
+      const dot = name.lastIndexOf('.'), base = dot > 0 ? name.slice(0, dot) : name, ext = dot > 0 ? name.slice(dot) : '';
+      for (let n = 2; used.has(name.toLowerCase()); n++) name = `${base} (${n})${ext}`;
+      used.add(name.toLowerCase());
+      zip.file(name, f.result.blob, { binary: true });
+    }
+    const blob = await zip.generateAsync({ type: 'blob', compression: 'STORE', mimeType: 'application/zip' },
+      (m) => { label.textContent = `묶는 중 ${Math.floor(m.percent)}%`; });
+    const d = new Date(), p = (n) => String(n).padStart(2, '0');
+    const url = URL.createObjectURL(blob);
+    saveAs(url, `UCONVERT_${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.zip`);
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    toast(`${done.length}개 파일을 ZIP으로 받았어요`);
+  } catch (e) {
+    console.error(e);
+    toast('ZIP으로 묶지 못했어요. 하나씩 받아 주세요');
+  } finally {
+    zipping = false; label.textContent = '모두 받기'; btn.classList.remove('busy');
+    renderRows();
+  }
 }
 
 /* ---------- 이벤트 ---------- */
@@ -355,6 +398,7 @@ $('#panel').addEventListener('input', e => {
 });
 $('#runAll').addEventListener('click', () => { files.forEach(f => { if (f.status === 'wait' || f.status === 'fail') enqueue(f); }); renderRows(); renderPanel(false); });
 $('#clear').addEventListener('click', () => removeIds(files.filter(f => f.status === 'done').map(f => f.id)));
+$('#zipAll').addEventListener('click', downloadAll);
 
 function addFiles(list) {
   let last = null;

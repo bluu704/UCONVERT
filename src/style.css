@@ -307,3 +307,11 @@ body.formats-open .cat{animation:fadeUp .5s var(--ease) both}
 .check input:checked::after{transform:translateY(-1px) rotate(-45deg) scale(1)}
 .enc{display:grid;gap:6px}
 .check.off{opacity:.5;cursor:not-allowed}
+
+/* 모두 받기 */
+.btn-zip{display:inline-flex;align-items:center;gap:6px;color:var(--ok);background:color-mix(in srgb,var(--ok) 14%,transparent)}
+.btn-zip:hover{background:color-mix(in srgb,var(--ok) 22%,transparent)}
+.btn-zip svg{width:15px;height:15px;flex:none}
+.btn-zip span{font-variant-numeric:tabular-nums}
+.btn-zip.busy{opacity:1;cursor:progress}
+@media (max-width:699px){.q-actions{flex-wrap:wrap;justify-content:flex-end}}
