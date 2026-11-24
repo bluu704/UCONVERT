@@ -182,13 +182,13 @@ $('#closeFormats').onclick = () => setSheet(false);
 $('#scrim').onclick = () => setSheet(false);
 $('#search').addEventListener('input', e => renderCats(e.target.value));
 
-/* ---------- 알림 ---------- */
-let toastT;
-function toast(msg) {
-  let t = $('.toast');
-  if (!t) { t = document.createElement('div'); t.className = 'toast'; t.setAttribute('role', 'status'); document.body.appendChild(t); }
-  t.textContent = msg; requestAnimationFrame(() => t.classList.add('show'));
-  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2600);
+/* ---------- 버튼에 잠깐 문구 띄우기 (아래 알림 상자 대신) ---------- */
+function flashButton(btn, text, ms = 2600) {
+  const label = btn.querySelector('span') || btn;
+  const orig = btn.dataset.label || (btn.dataset.label = label.textContent);
+  label.textContent = text; btn.classList.add('flash');
+  clearTimeout(btn._flashT);
+  btn._flashT = setTimeout(() => { label.textContent = orig; btn.classList.remove('flash'); }, ms);
 }
 
 /* ---------- 변환 대기열 ---------- */
@@ -199,7 +199,7 @@ const MAX_PARALLEL = 1;
 function enqueue(f) {
   if (!f.target || f.status === 'run' || f.status === 'queued') return;
   disposeResult(f);
-  f.status = 'queued'; f.p = 0; f.err = '';
+  f.status = 'queued'; f.p = 0; f.err = ''; f.downloaded = false;
   queue.push(f);
   pump();
 }
@@ -208,7 +208,7 @@ function pump() {
     const f = queue.shift();
     if (!byId(f.id) || f.status !== 'queued') continue;
     running++;
-    runJob(f).finally(() => { running--; pump(); });
+    runJob(f).finally(() => { running--; pump(); if (!running && !queue.length) onQueueIdle(); });
   }
 }
 async function runJob(f) {
@@ -227,12 +227,10 @@ async function runJob(f) {
     f.result = { ...r, url: URL.createObjectURL(r.blob) };
     f.pwWrong = false;
     f.status = 'done'; f.p = 1;
-    toast(`${f.name} → ${r.name.split('.').slice(1).join('.').toUpperCase()} 완료`);
   } catch (e) {
     if (!byId(f.id)) return;
     if (e?.code === 'NEED_PASSWORD' || e?.code === 'WRONG_PASSWORD') {
       f.status = 'locked'; f.pwWrong = e.code === 'WRONG_PASSWORD'; f.err = e.message;
-      if (sel !== f.id) toast(`${f.name}: ${f.pwWrong ? '암호가 틀렸어요' : '암호가 필요해요'}`);
     } else {
       console.error(e);
       f.status = 'fail'; f.err = friendlyError(e);
@@ -246,6 +244,7 @@ function disposeResult(f) {
 }
 function download(f) {
   if (!f.result) return;
+  f.downloaded = true;
   saveAs(f.result.url, f.result.name);
 }
 function saveAs(url, name) {
@@ -257,19 +256,23 @@ function saveAs(url, name) {
 /* ---------- 모두 받기 (ZIP 하나로) ---------- */
 const ZIP_LIMIT = 1.5 * 1024 ** 3; // 브라우저 메모리 안에서 묶으므로 이보다 크면 하나씩 받게 한다
 let zipping = false;
-async function downloadAll() {
-  const done = files.filter(f => f.status === 'done' && f.result);
-  if (!done.length || zipping) return;
-  if (done.length === 1) { download(done[0]); return; }
-  const total = done.reduce((a, f) => a + f.result.blob.size, 0);
-  if (total > ZIP_LIMIT) { toast(`합계 ${(total / 1024 ** 3).toFixed(1)}GB라 ZIP으로 묶을 수 없어요. 하나씩 받아 주세요`); return; }
+function downloadAll() {
+  return downloadFiles(files.filter(f => f.status === 'done' && f.result));
+}
+
+// 여러 개면 ZIP 하나로, 하나면 그 파일만
+async function downloadFiles(list) {
+  if (!list.length || zipping) return;
+  if (list.length === 1) { download(list[0]); return; }
   const btn = $('#zipAll'), label = btn.querySelector('span');
+  const total = list.reduce((a, f) => a + f.result.blob.size, 0);
+  if (total > ZIP_LIMIT) { flashButton(btn, `${(total / 1024 ** 3).toFixed(1)}GB라 묶을 수 없어요`, 4000); return; }
   zipping = true; btn.disabled = true; btn.classList.add('busy');
   try {
     const JSZip = (await import('jszip')).default;
     const zip = new JSZip();
     const used = new Set();
-    for (const f of done) {
+    for (const f of list) {
       // 같은 이름이 있으면 "이름 (2).pdf"처럼 번호를 붙인다
       let name = f.result.name.replace(/[\\/:*?"<>|]/g, '_');
       const dot = name.lastIndexOf('.'), base = dot > 0 ? name.slice(0, dot) : name, ext = dot > 0 ? name.slice(dot) : '';
@@ -283,14 +286,25 @@ async function downloadAll() {
     const url = URL.createObjectURL(blob);
     saveAs(url, `UCONVERT_${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.zip`);
     setTimeout(() => URL.revokeObjectURL(url), 60000);
-    toast(`${done.length}개 파일을 ZIP으로 받았어요`);
+    list.forEach(f => { f.downloaded = true; });
+    label.textContent = '모두 받기';
   } catch (e) {
     console.error(e);
-    toast('ZIP으로 묶지 못했어요. 하나씩 받아 주세요');
+    label.textContent = '모두 받기';
+    flashButton(btn, '묶지 못했어요', 3000);
   } finally {
-    zipping = false; label.textContent = '모두 받기'; btn.classList.remove('busy');
+    zipping = false; btn.classList.remove('busy');
     renderRows();
   }
+}
+
+/* ---------- 변환이 다 끝나면 자동으로 받기 ---------- */
+let autoDl = false;
+try { autoDl = localStorage.getItem('uc-autodl') === '1'; } catch { /* 저장소 없음 */ }
+function onQueueIdle() {
+  if (!autoDl) return;
+  const fresh = files.filter(f => f.status === 'done' && f.result && !f.downloaded);
+  if (fresh.length) downloadFiles(fresh);
 }
 
 /* ---------- 이벤트 ---------- */
@@ -355,7 +369,7 @@ $('#panel').addEventListener('click', e => {
   if (e.target.id === 'applyAll') {
     let n = 0;
     files.forEach(x => { if (x !== f && x.ext === f.ext && (x.status === 'wait' || x.status === 'fail')) { x.target = f.target; x.opts = { ...f.opts }; n++; } });
-    toast(n ? `${n}개에 적용했어요` : '같은 형식 파일이 없어요'); renderRows();
+    flashButton(e.target.closest('#applyAll'), n ? `${n}개에 적용함` : '같은 형식 없음', 1800); renderRows();
   }
 });
 $('#panel').addEventListener('keydown', e => {
@@ -386,7 +400,6 @@ function submitPassword(f) {
     }
   }
   enqueue(f);
-  if (n) toast(`압축 파일 ${n + 1}개에 같은 암호를 넣었어요`);
   renderRows(); renderPanel(false);
   if (phone.matches) setPanel(false);
 }
@@ -399,6 +412,12 @@ $('#panel').addEventListener('input', e => {
 $('#runAll').addEventListener('click', () => { files.forEach(f => { if (f.status === 'wait' || f.status === 'fail') enqueue(f); }); renderRows(); renderPanel(false); });
 $('#clear').addEventListener('click', () => removeIds(files.filter(f => f.status === 'done').map(f => f.id)));
 $('#zipAll').addEventListener('click', downloadAll);
+const autoEl = $('#autoDl');
+autoEl.checked = autoDl;
+autoEl.addEventListener('change', () => {
+  autoDl = autoEl.checked;
+  try { localStorage.setItem('uc-autodl', autoDl ? '1' : '0'); } catch { /* 저장소 없음 */ }
+});
 
 function addFiles(list) {
   let last = null;
@@ -414,7 +433,6 @@ function addFiles(list) {
   if (last) {
     sel = last; renderRows(); renderPanel(true);
     const r = $('#rows'); requestAnimationFrame(() => r.scrollTo({ top: r.scrollHeight, behavior: 'smooth' }));
-    toast(`${list.length}개 추가했어요`);
   }
 }
 $('#picker').addEventListener('change', e => { addFiles(e.target.files); e.target.value = ''; });

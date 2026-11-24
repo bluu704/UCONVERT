@@ -58,7 +58,12 @@
         <input type="file" id="picker" multiple hidden>
       </label>
       <div class="q-head">
-        <h2>변환 목록<span class="count" id="count"></span></h2>
+        <div class="q-title">
+          <h2>변환 목록<span class="count" id="count"></span></h2>
+          <label class="switch" title="변환이 모두 끝나면 결과를 자동으로 받아요 (여러 개면 ZIP 하나로)">
+            <input type="checkbox" id="autoDl"><span class="track" aria-hidden="true"></span><span class="switch-label">끝나면 자동 받기</span>
+          </label>
+        </div>
         <div class="q-actions">
           <button class="btn" id="clear">완료 지우기</button>
           <button class="btn btn-zip" id="zipAll"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg><span>모두 받기</span></button>
