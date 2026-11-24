@@ -3,12 +3,8 @@ import { loadImage } from './doc/blocks.js';
 import { MIME } from '../formats.js';
 
 export async function decodeImage(file, ext) {
-  let blob = file;
-  if (ext === 'heic') {
-    const heic2any = (await import('heic2any')).default;
-    const r = await heic2any({ blob: file, toType: 'image/png' });
-    blob = Array.isArray(r) ? r[0] : r;
-  }
+  const blob = file;
+  if (ext === 'heic') return decodeHeic(file);
   if (ext === 'tiff') {
     const UTIF = (await import('utif')).default || (await import('utif'));
     const buf = await file.arrayBuffer();
@@ -42,6 +38,34 @@ export async function decodeImage(file, ext) {
   const c = canvas(src.width, src.height);
   c.getContext('2d').drawImage(src, 0, 0);
   src.close?.();
+  return c;
+}
+
+// HEIC: 브라우저가 직접 읽을 수 있으면(Safari) 그걸 쓰고, 아니면 libheif(WebAssembly)
+let heifLib = null;
+async function decodeHeic(file) {
+  try {
+    const bmp = await createImageBitmap(file);
+    const c = canvas(bmp.width, bmp.height);
+    c.getContext('2d').drawImage(bmp, 0, 0); bmp.close();
+    return c;
+  } catch { /* 직접 못 읽음 */ }
+  if (!heifLib) heifLib = (async () => {
+    const factory = (await import('libheif-js/libheif-wasm/libheif-bundle.mjs')).default;
+    const m = factory();
+    return typeof m?.HeifDecoder === 'function' ? m : await m;
+  })().catch(e => { heifLib = null; throw e; });
+  const lib = await heifLib;
+  const decoder = new lib.HeifDecoder();
+  const images = decoder.decode(new Uint8Array(await file.arrayBuffer()));
+  if (!images?.length) throw new Error('HEIC 파일을 읽지 못했어요');
+  const img = images[0];
+  const w = img.get_width(), h = img.get_height();
+  const c = canvas(w, h), x = c.getContext('2d');
+  const data = x.createImageData(w, h);
+  await new Promise((res, rej) => img.display(data, (d) => d ? res() : rej(new Error('HEIC 파일을 읽지 못했어요'))));
+  x.putImageData(data, 0, 0);
+  for (const i of images) i.free?.();
   return c;
 }
 
@@ -184,7 +208,7 @@ function hasAlpha(c) {
 export async function pdfToImages(file, target, opts, progress) {
   const { getPdfjs } = await import('./doc/readers.js');
   const pdfjs = await getPdfjs();
-  const pdf = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+  const pdf = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()), isEvalSupported: false }).promise;
   const outs = [];
   for (let p = 1; p <= pdf.numPages; p++) {
     const page = await pdf.getPage(p);

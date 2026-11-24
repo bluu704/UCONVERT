@@ -5,6 +5,33 @@ import { escapeHtml, bytesToDataUrl, sniffImageMime } from './blocks.js';
 const baseName = (n) => n.replace(/\.[^.]+$/, '').replace(/\.tar$/, '');
 
 export async function readDoc(file, ext, progress) {
+  const doc = await readDocRaw(file, ext, progress);
+  doc.chapters = doc.chapters.map(c => ({ ...c, html: sanitizeHtml(c.html) }));
+  return doc;
+}
+
+// 들어온 문서의 HTML에서 실행될 수 있는 것을 모두 뺀다 (결과물 HTML·EPUB을 열었을 때 스크립트가 돌지 않게)
+const DROP = 'script,style,link,meta,base,iframe,frame,frameset,object,embed,applet,form,input,button,select,textarea,noscript,template,portal,dialog';
+const URL_ATTR = /^(href|src|xlink:href|action|formaction|poster|background|data|srcset|lowsrc|dynsrc)$/i;
+export function sanitizeHtml(html) {
+  const d = new DOMParser().parseFromString(`<body>${html}</body>`, 'text/html');
+  d.querySelectorAll(DROP).forEach(e => e.remove());
+  for (const el of d.body.querySelectorAll('*')) {
+    for (const a of [...el.attributes]) {
+      const n = a.name.toLowerCase(), v = a.value.replace(/[\u0000-\u0020]+/g, '').toLowerCase();
+      if (n.startsWith('on') || n === 'srcdoc' || n === 'formaction') { el.removeAttribute(a.name); continue; }
+      if (URL_ATTR.test(n)) {
+        const isImg = (n === 'src' || n.endsWith('href')) && /^(img|image)$/i.test(el.localName);
+        const ok = v.startsWith('#') || /^https?:/.test(v) || /^mailto:/.test(v) || (isImg && /^data:image\/(png|jpe?g|gif|webp|bmp|avif|svg\+xml)[;,]/.test(v));
+        if (!ok) el.removeAttribute(a.name);
+      }
+      if (n === 'style' && /expression\(|url\s*\(|@import|behavior:/i.test(a.value)) el.removeAttribute(a.name);
+    }
+  }
+  return d.body.innerHTML;
+}
+
+async function readDocRaw(file, ext, progress) {
   const title = baseName(file.name);
   switch (ext) {
     case 'txt': return { title, chapters: [{ title, html: textToHtml(await readText(file)) }] };
@@ -157,7 +184,7 @@ export async function getPdfjs() {
 
 async function readPdf(file, title, progress) {
   const pdfjs = await getPdfjs();
-  const pdf = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+  const pdf = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()), isEvalSupported: false }).promise;
   const meta = await pdf.getMetadata().catch(() => null);
   const docTitle = meta?.info?.Title?.trim() || title;
   let html = '';

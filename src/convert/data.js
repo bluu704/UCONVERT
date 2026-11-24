@@ -4,6 +4,11 @@ import { readText } from './doc/readers.js';
 
 const STRUCT = new Set(['json', 'yaml', 'xml']);
 
+// '__proto__' 같은 키도 객체의 프로토타입을 바꾸지 않고 평범한 값으로 넣는다
+function setOwn(o, k, v) {
+  Object.defineProperty(o, k, { value: v, enumerable: true, writable: true, configurable: true });
+}
+
 export async function convertData(file, ext, target, opts) {
   // JSON·YAML·XML 사이는 구조를 그대로 옮긴다
   if (STRUCT.has(ext) && STRUCT.has(target)) {
@@ -62,7 +67,7 @@ async function writeStruct(obj, target) {
     if (o instanceof Date) return o.toISOString();
     if (o && typeof o === 'object') {
       const r = {};
-      for (const [k, v] of Object.entries(o)) r[k.startsWith('@') ? k : xmlName(k)] = safe(v);
+      for (const [k, v] of Object.entries(o)) setOwn(r, k.startsWith('@') ? k : xmlName(k), safe(v));
       return r;
     }
     return o;
@@ -72,7 +77,7 @@ async function writeStruct(obj, target) {
   else if (obj && typeof obj === 'object' && Object.keys(obj).length === 1 && !Array.isArray(Object.values(obj)[0])) root = safe(obj);
   else if (obj && typeof obj === 'object') {
     const r = {};
-    for (const [k, v] of Object.entries(obj)) r[xmlName(k)] = Array.isArray(v) ? { row: safe(v) } : safe(v);
+    for (const [k, v] of Object.entries(obj)) setOwn(r, xmlName(k), Array.isArray(v) ? { row: safe(v) } : safe(v));
     root = { data: r };
   } else root = { value: obj };
   return '<?xml version="1.0" encoding="UTF-8"?>\n' + b.build(root);
@@ -89,7 +94,7 @@ function structToBook(XLSX, obj) {
   const wb = XLSX.utils.book_new();
   const flat = (o, p = '', r = {}) => {
     if (o && typeof o === 'object' && !Array.isArray(o) && !(o instanceof Date)) { for (const [k, v] of Object.entries(o)) flat(v, p ? `${p}.${k}` : k, r); }
-    else r[p || 'value'] = Array.isArray(o) ? JSON.stringify(o) : o;
+    else setOwn(r, p || 'value', Array.isArray(o) ? JSON.stringify(o) : o);
     return r;
   };
   const add = (name, arr) => XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(arr.map(x => (x && typeof x === 'object') ? flat(x) : { value: x })), name.slice(0, 31).replace(/[\\/?*[\]:]/g, '_') || 'Sheet1');

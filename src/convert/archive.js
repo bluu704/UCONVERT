@@ -49,6 +49,21 @@ function is7zHeaderEncrypted(bytes) {
   return false;
 }
 
+// 압축 폭탄 방지: 풀기 전에 전체 크기와 파일 수를 본다 (브라우저 메모리 안에서 풀기 때문)
+const MAX_UNPACKED = 2 * 1024 ** 3, MAX_FILES = 100000, MAX_RATIO = 1000;
+function checkSize(sz, inName, pw, ctx, packed) {
+  run(sz, ['l', '-slt', '-ba', inName, ...pw], ctx);
+  let total = 0, count = 0;
+  for (const line of sz.log) {
+    const m = /^Size = (\d+)/.exec(line);
+    if (m) { total += +m[1]; count++; }
+  }
+  if (count > MAX_FILES) throw new Error(`파일이 너무 많아요 (${count.toLocaleString()}개)`);
+  if (total > MAX_UNPACKED || (total > 200 * 1024 ** 2 && total / Math.max(1, packed) > MAX_RATIO)) {
+    throw new Error(`압축을 풀면 ${(total / 1024 ** 3).toFixed(1)}GB가 돼서 브라우저에서 처리할 수 없어요`);
+  }
+}
+
 function walk(FS, dir) {
   let n = 0;
   for (const name of FS.readdir(dir)) {
@@ -73,6 +88,7 @@ export async function convertArchive(file, ext, target, progress, opts = {}) {
   const password = opts.password || '';
   const pw = ['-p' + (password || NO_PASSWORD)];
   const ctx = { password, headerEncrypted: is7zHeaderEncrypted(bytes) };
+  checkSize(sz, inName, pw, ctx, bytes.length);
   run(sz, ['x', inName, '-o/work/x', '-y', '-bso0', '-bsp0', ...pw], ctx);
   // .tar.gz 처럼 안에 tar 하나만 있으면 한 번 더 푼다
   const inner = FS.readdir('/work/x').filter(n => n !== '.' && n !== '..');

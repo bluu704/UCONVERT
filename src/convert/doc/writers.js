@@ -14,7 +14,7 @@ export async function writeDoc(doc, target, opts, progress) {
       const td = new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced', bulletListMarker: '-' });
       td.remove(['script', 'style']);
       // 큰 data: 이미지는 마크다운에 넣지 않는다
-      td.addRule('img', { filter: 'img', replacement: (_, n) => { const s = n.getAttribute('src') || ''; return /^data:/.test(s) ? (n.getAttribute('alt') ? `*[그림: ${n.getAttribute('alt')}]*` : '') : `![${n.getAttribute('alt') || ''}](${s})`; } });
+      td.addRule('img', { filter: 'img', replacement: (_, n) => { const s = n.getAttribute('src') || ''; if (!s) return ''; return /^data:/.test(s) ? (n.getAttribute('alt') ? `*[그림: ${n.getAttribute('alt')}]*` : '') : `![${n.getAttribute('alt') || ''}](${s})`; } });
       return new Blob([doc.chapters.map(c => td.turndown(c.html)).join('\n\n---\n\n') + '\n'], { type: MIME.md });
     }
     case 'docx': return writeDocx(doc, progress);
@@ -29,6 +29,7 @@ export async function writeDoc(doc, target, opts, progress) {
 function htmlPage(doc) {
   return `<!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'">
 <title>${escapeHtml(doc.title)}</title>
 <style>body{max-width:44em;margin:2em auto;padding:0 1em;font:17px/1.75 "Noto Serif KR","Nanum Myeongjo",serif;color:#1b1b1b}
 img{max-width:100%;height:auto}h1,h2,h3{line-height:1.3}pre{white-space:pre-wrap;background:#f4f4f4;padding:1em}

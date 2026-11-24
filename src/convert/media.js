@@ -104,23 +104,40 @@ const CORES = import.meta.env.VITE_FFMPEG_CORE ? [import.meta.env.VITE_FFMPEG_CO
   'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm',
   'https://unpkg.com/@ffmpeg/core@0.12.10/dist/esm',
 ];
+// CDN 파일이 바꿔치기되지 않았는지 확인하는 SHA-384 지문 (@ffmpeg/core@0.12.10, npm 원본과 대조함)
+const CORE_SHA384 = {
+  'ffmpeg-core.js': '9KlAmgHu5wDqdgQvFhQGZOtKdCwGcMppDhM/kBkUpZ5LS7KGuAHbE+NgtJQEf84i',
+  'ffmpeg-core.wasm': 'U1VDhkPYrM3wTCT4/vjSpSsKqG/UjljYrYCI4hBSJ02svbCkxuCi6U6u/peg5vpW',
+};
+async function verifiedBlobURL(url, name, type) {
+  const res = await fetch(url, { credentials: 'omit' });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const buf = await res.arrayBuffer();
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-384', buf));
+  let b = ''; for (const x of digest) b += String.fromCharCode(x);
+  if (btoa(b) !== CORE_SHA384[name]) throw Object.assign(new Error('integrity'), { integrity: true });
+  return URL.createObjectURL(new Blob([buf], { type }));
+}
+
 async function getFfmpeg() {
   if (!ffPromise) ffPromise = (async () => {
     const { FFmpeg } = await import('@ffmpeg/ffmpeg');
-    const { toBlobURL } = await import('@ffmpeg/util');
     let lastErr;
     for (const base of CORES) {
       try {
         const ff = new FFmpeg();
         await ff.load({
-          coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, 'text/javascript'),
-          wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, 'application/wasm'),
+          coreURL: await verifiedBlobURL(`${base}/ffmpeg-core.js`, 'ffmpeg-core.js', 'text/javascript'),
+          wasmURL: await verifiedBlobURL(`${base}/ffmpeg-core.wasm`, 'ffmpeg-core.wasm', 'application/wasm'),
         });
         return ff;
       } catch (e) { lastErr = e; }
     }
     throw lastErr;
-  })().catch(e => { ffPromise = null; throw new Error('변환 엔진(ffmpeg)을 불러오지 못했어요. 인터넷 연결을 확인해 주세요'); });
+  })().catch(e => {
+    ffPromise = null;
+    throw new Error(e?.integrity ? '변환 엔진 파일이 원본과 달라서 사용하지 않았어요' : '변환 엔진(ffmpeg)을 불러오지 못했어요. 인터넷 연결을 확인해 주세요');
+  });
   return ffPromise;
 }
 
