@@ -88,8 +88,10 @@ export async function convertArchive(file, ext, target, progress, opts = {}) {
   // 묶기
   FS.chdir('/work/x');
   let out;
-  if (target === 'zip') { run(sz, ['a', '-tzip', '-mcu=on', '-mx=6', '/work/out.zip', '*', '-bso0', '-bsp0']); out = '/work/out.zip'; }
-  else if (target === '7z') { run(sz, ['a', '-t7z', '-mx=6', '/work/out.7z', '*', '-bso0', '-bsp0']); out = '/work/out.7z'; }
+  // 결과물 암호: ZIP은 AES-256, 7z는 파일 목록까지 암호화. TAR·GZ는 암호를 지원하지 않는다.
+  const lockOut = password && opts.encryptOut !== false;
+  if (target === 'zip') { run(sz, ['a', '-tzip', '-mcu=on', '-mx=6', ...(lockOut ? ['-p' + password, '-mem=AES256'] : []), '/work/out.zip', '*', '-bso0', '-bsp0']); out = '/work/out.zip'; }
+  else if (target === '7z') { run(sz, ['a', '-t7z', '-mx=6', ...(lockOut ? ['-p' + password, '-mhe=on'] : []), '/work/out.7z', '*', '-bso0', '-bsp0']); out = '/work/out.7z'; }
   else if (target === 'tar') { run(sz, ['a', '-ttar', '/work/out.tar', '*', '-bso0', '-bsp0']); out = '/work/out.tar'; }
   else if (target === 'gz') {
     run(sz, ['a', '-ttar', '/work/out.tar', '*', '-bso0', '-bsp0']);

@@ -95,6 +95,11 @@ function optionsFor(f) {
   if (tc === 'aud' && ['mp3', 'm4a', 'aac', 'ogg', 'opus'].includes(t)) return seg(o, 'bitrate', '음질 (kbps)', ['128', '192', '256', '320']);
   if (tc === 'vid') return seg(o, 'res', t === 'gif' ? '크기' : '해상도', t === 'gif' ? [{ v: '원본', label: '480' }, '720p'] : ['원본', '1080p', '720p', '480p']);
   if (t === 'csv') return seg(o, 'delim', '구분자', [{ v: '쉼표', dim: ',' }, { v: '탭', dim: '⇥' }, { v: '세미콜론', dim: ';' }]);
+  if (tc === 'arc' && (o.password || f.status === 'locked')) {
+    const can = t === 'zip' || t === '7z';
+    return `<div class="enc"><label class="check ${can ? '' : 'off'}"><input type="checkbox" id="encOut" ${can && o.encryptOut !== false ? 'checked' : ''} ${can ? '' : 'disabled'}><span>결과물에도 같은 암호 걸기</span></label>
+      <p class="pw-msg">${can ? (t === 'zip' ? 'AES-256으로 암호화해요' : '파일 목록까지 암호화해요') : 'TAR·GZ는 암호를 걸 수 없어요. ZIP이나 7Z를 고르세요'}</p></div>`;
+  }
   return '';
 }
 function placeInd(segEl, instant) {
@@ -314,6 +319,7 @@ $('#panel').addEventListener('keydown', e => {
   if (e.key === 'Enter' && e.target.id === 'pwInput') { e.preventDefault(); const f = byId(sel); if (f) submitPassword(f); }
 });
 $('#panel').addEventListener('change', e => {
+  if (e.target.id === 'encOut') { const f = byId(sel); if (f) f.opts.encryptOut = e.target.checked; return; }
   if (e.target.id !== 'pwAll') return;
   pwAll = e.target.checked;
   if (!pwAll) sharedPassword = null;
@@ -332,6 +338,7 @@ function submitPassword(f) {
     for (const x of files) {
       if (x === f || catOf(x.ext) !== 'arc') continue;
       x.opts.password = pw;
+      if (f.opts.encryptOut !== undefined) x.opts.encryptOut = f.opts.encryptOut;
       if (x.status === 'locked') { x.pwWrong = false; enqueue(x); n++; }
     }
   }

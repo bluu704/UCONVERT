@@ -18,7 +18,7 @@
 
 ### 알아둘 점
 - **DRM**이 걸린 전자책(아마존·리디 등에서 산 책)은 변환할 수 없습니다.
-- 암호가 걸린 압축 파일은 암호를 넣으면 풀 수 있습니다. "모든 압축 파일에 같은 암호 적용"을 켜면 목록의 다른 압축 파일과 나중에 추가하는 압축 파일에도 같은 암호를 씁니다. 암호는 브라우저 메모리에만 있고 어디에도 저장되지 않습니다.
+- 암호가 걸린 압축 파일은 암호를 넣으면 풀 수 있습니다. "모든 압축 파일에 같은 암호 적용"을 켜면 목록의 다른 압축 파일과 나중에 추가하는 압축 파일에도 같은 암호를 씁니다. "결과물에도 같은 암호 걸기"를 켜면 ZIP(AES-256)·7Z(파일 목록까지 암호화) 결과물에 같은 암호가 걸립니다. TAR·GZ는 암호를 지원하지 않습니다. 암호는 브라우저 메모리에만 있고 어디에도 저장되지 않습니다.
 - MOBI 중 HUFF/CDIC 압축 파일, HWP·DOC(구형 워드)는 아직 지원하지 않습니다.
 - PDF → 문서 변환은 **글자만** 가져옵니다(스캔한 PDF는 불가). PPTX → PDF도 글자만 옮깁니다.
 - 영상·오디오는 브라우저 내장 인코더(WebCodecs)로 조금씩 읽고 써서 큰 파일도 처리합니다. Chrome·Edge가 가장 빠릅니다.
@@ -26,15 +26,18 @@
 
 ## Cloudflare Pages에 올리기
 
-1. Cloudflare 대시보드 → **Workers & Pages** → **Create** → **Pages** → **Connect to Git** → 이 저장소 선택
-2. 빌드 설정
-   - Framework preset: `Vite` (또는 None)
-   - Build command: `npm run build`
-   - Build output directory: `dist`
-   - 환경 변수: `NODE_VERSION` = `22`
-3. **Save and Deploy**
+Cloudflare 대시보드 → **Workers & Pages** → **Create** → **Pages** → **Connect to Git** → 이 저장소 선택 후:
 
-`main` 브랜치에 올릴 때마다 자동으로 다시 배포됩니다.
+| 항목 | 값 |
+|---|---|
+| Production branch | `main` |
+| Framework preset | `Vite` (고르면 아래 두 칸이 자동으로 채워짐) |
+| Build command | `npm run build` |
+| Build output directory | `dist` |
+| Root directory | 비워 둠 |
+| Environment variables | `NODE_VERSION` = `22` |
+
+그다음 **Save and Deploy**. 이후 `main`에 올릴 때마다 자동으로 다시 배포됩니다.
 
 ## 직접 실행
 
