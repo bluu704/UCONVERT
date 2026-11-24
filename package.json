@@ -1,0 +1,48 @@
+{
+  "name": "uconvert",
+  "version": "1.0.0",
+  "description": "브라우저 안에서 동작하는 파일 형식 변환기",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bluu704/uconvert.git"
+  },
+  "bugs": {
+    "url": "https://github.com/bluu704/uconvert/issues"
+  },
+  "homepage": "https://github.com/bluu704/uconvert#readme",
+  "devDependencies": {
+    "vite": "^6.4.6"
+  },
+  "dependencies": {
+    "@ffmpeg/ffmpeg": "^0.12.15",
+    "@ffmpeg/util": "^0.12.2",
+    "@jsquash/avif": "2.1.1",
+    "@jsquash/webp": "1.5.0",
+    "@mediabunny/aac-encoder": "1.65.0",
+    "@mediabunny/flac-encoder": "1.65.0",
+    "@mediabunny/mp3-encoder": "1.65.0",
+    "7z-wasm": "^1.2.0",
+    "docx": "9.15.3",
+    "fast-xml-parser": "5.12.0",
+    "fontkit": "2.0.4",
+    "gifenc": "^1.0.3",
+    "heic2any": "^0.0.4",
+    "js-yaml": "^5.5.0",
+    "jszip": "^3.10.2",
+    "mammoth": "^1.13.0",
+    "marked": "18.2.0",
+    "mediabunny": "1.65.0",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^6.5.438",
+    "turndown": "^7.2.5",
+    "utif": "^3.1.0",
+    "xlsx": "^0.18.5"
+  },
+  "private": true,
+  "type": "module"
+}
