@@ -7,6 +7,8 @@ const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;
 const IC = {
   dl: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>',
   x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  lock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></svg>',
+  eye: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
 };
 const DEFAULT_OPTS = { paper: 'A4', margin: '보통', font: '명조', quality: 85, bitrate: '192', res: '원본', delim: '쉼표' };
 
@@ -16,6 +18,8 @@ const files = [];          // {id, file, name, ext, target, opts, status, p, err
 let sel = null;
 const seen = new Set();
 let holdRender = false, pendingRender = false;
+let sharedPassword = null;   // '모든 압축 파일에 같은 암호' 체크 시 나중에 추가하는 압축 파일에도 쓴다
+let pwAll = false;
 function releaseRender() { holdRender = false; if (pendingRender) { pendingRender = false; renderRows(); } }
 
 const cvar = (ext) => { const k = catOf(ext); return k ? `var(${CATS[k].c})` : 'var(--c-arc)'; };
@@ -29,6 +33,7 @@ function stateHTML(f) {
   if (f.status === 'run') return `<span class="pill run" data-pct>${Math.round(f.p * 100)}%</span>`;
   if (f.status === 'done') return `<button class="dl" data-dl="${f.id}">${IC.dl}받기</button>`;
   if (f.status === 'fail') return '<span class="pill fail">실패</span>';
+  if (f.status === 'locked') return `<span class="pill lock">${IC.lock}암호 필요</span>`;
   return '<span class="pill fail">미지원</span>';
 }
 function renderRows() {
@@ -41,7 +46,7 @@ function renderRows() {
   list.innerHTML = files.map(f => {
     const isNew = !seen.has(f.id); seen.add(f.id);
     const extra = f.status === 'run' ? `<div class="bar ${f.p < 0.02 ? 'indet' : ''}"><i style="width:${f.p * 100}%"></i></div>`
-      : (f.status === 'fail' || f.status === 'unknown') ? `<div class="err">${esc(f.err || '')}</div>` : '';
+      : (f.status === 'fail' || f.status === 'unknown' || (f.status === 'locked' && f.pwWrong)) ? `<div class="err">${esc(f.err || '')}</div>` : '';
     return `<li class="row ${f.id === sel ? 'sel' : ''} ${isNew ? 'enter' : ''}" data-id="${f.id}" tabindex="0" draggable="${finePtr}" style="${isNew ? `animation-delay:${Math.min(n++, 8) * 45}ms` : ''}">
       <span class="badge" style="--c:${cvar(f.ext)}">${esc(f.ext || '?')}</span>
       <div class="f-meta"><div class="f-name" title="${esc(f.name)}">${esc(f.name)}</div>${extra}</div>
@@ -114,7 +119,9 @@ function renderPanel(animate) {
   const groups = targetsFor(f.ext);
   const locked = f.status === 'run' || f.status === 'queued';
   const o = f.target ? optionsFor(f) : '';
-  const canRun = f.target && (f.status === 'wait' || f.status === 'fail' || f.status === 'done');
+  const canRun = f.target && (f.status === 'wait' || f.status === 'fail' || f.status === 'done' || f.status === 'locked');
+  const needPw = f.status === 'locked';
+  const others = files.filter(x => x !== f && catOf(x.ext) === 'arc').length;
   P.innerHTML = `${titleHTML(f)}<div class="swap scroll">
     <div class="p-file"><span class="badge" style="--c:${cvar(f.ext)}">${esc(f.ext || '?')}</span>
       <div class="f-meta"><div class="f-name">${esc(f.name)}</div></div></div>
@@ -122,13 +129,23 @@ function renderPanel(animate) {
       <div class="grp" style="--c:var(${CATS[g.k].c})"><h3 class="sub">${CATS[g.k].label}</h3>
         <div class="fmts">${g.exts.map(e => `<button class="fmt" data-fmt="${e}" aria-pressed="${f.target === e}" ${locked ? 'disabled' : ''}>${e}</button>`).join('')}</div></div>`).join('')}</div>`
       : '<p class="p-note">이 형식은 아직 지원하지 않아요</p>'}
+    ${needPw ? `<div class="pw">
+      <h3 class="sub">${IC.lock}암호</h3>
+      <div class="pw-field ${f.pwWrong ? 'bad' : ''}">
+        <input type="password" id="pwInput" placeholder="압축 파일 암호" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(f.pwWrong ? '' : (f.opts.password || ''))}">
+        <button class="pw-eye" id="pwEye" type="button" aria-label="암호 보기" aria-pressed="false">${IC.eye}</button>
+      </div>
+      <p class="pw-msg" id="pwMsg">${f.pwWrong ? '암호가 틀렸어요. 다시 입력하세요' : '이 압축 파일은 암호가 걸려 있어요'}</p>
+      <label class="check"><input type="checkbox" id="pwAll" ${pwAll ? 'checked' : ''}><span>모든 압축 파일에 같은 암호 적용${others ? ` (${others + 1}개)` : ''}</span></label>
+    </div>` : ''}
     ${o ? `<div class="opts">${o}</div>` : ''}
   </div>
   <div class="apply">
     <button class="btn" id="applyAll" ${!f.target ? 'disabled' : ''}>같은 형식에 적용</button>
-    <button class="btn btn-primary" id="runOne" ${canRun ? '' : 'disabled'}>${f.status === 'fail' ? '다시 시도' : f.status === 'done' ? '다시 변환' : '변환'}</button>
+    <button class="btn btn-primary" id="runOne" ${canRun ? '' : 'disabled'}>${needPw ? '암호 넣고 변환' : f.status === 'fail' ? '다시 시도' : f.status === 'done' ? '다시 변환' : '변환'}</button>
   </div>`;
   placeAll();
+  if (needPw && finePtr) setTimeout(() => $('#pwInput')?.focus({ preventScroll: true }), animate ? 300 : 0);
 }
 function select(id) {
   if (sel === id) return;
@@ -202,12 +219,18 @@ async function runJob(f) {
     const r = await convert(f.file, f.ext, f.target, { ...f.opts }, progress, f.ctrl.signal);
     if (!byId(f.id)) { r.cleanup?.(); return; }
     f.result = { ...r, url: URL.createObjectURL(r.blob) };
+    f.pwWrong = false;
     f.status = 'done'; f.p = 1;
     toast(`${f.name} → ${r.name.split('.').slice(1).join('.').toUpperCase()} 완료`);
   } catch (e) {
-    console.error(e);
     if (!byId(f.id)) return;
-    f.status = 'fail'; f.err = friendlyError(e);
+    if (e?.code === 'NEED_PASSWORD' || e?.code === 'WRONG_PASSWORD') {
+      f.status = 'locked'; f.pwWrong = e.code === 'WRONG_PASSWORD'; f.err = e.message;
+      if (sel !== f.id) toast(`${f.name}: ${f.pwWrong ? '암호가 틀렸어요' : '암호가 필요해요'}`);
+    } else {
+      console.error(e);
+      f.status = 'fail'; f.err = friendlyError(e);
+    }
   }
   f.ctrl = null;
   renderRows(); if (sel === f.id) renderPanel(false);
@@ -259,7 +282,7 @@ $('#panel').addEventListener('click', e => {
     const old = $('#panel .opts'), html = optionsFor(f);
     if (old) old.remove();
     if (html) { $('#panel .groups').insertAdjacentHTML('afterend', `<div class="opts fade">${html}</div>`); placeAll(); }
-    const run = $('#runOne'); if (run) { run.disabled = false; run.textContent = '변환'; }
+    const run = $('#runOne'); if (run) { run.disabled = false; run.textContent = f.status === 'locked' ? '암호 넣고 변환' : '변환'; }
     return;
   }
   const sb = e.target.closest('.seg button');
@@ -272,13 +295,51 @@ $('#panel').addEventListener('click', e => {
     }
     return;
   }
-  if (e.target.id === 'runOne') { enqueue(f); if (phone.matches) setPanel(false); }
+  if (e.target.closest('#pwEye')) {
+    const inp = $('#pwInput'), eye = $('#pwEye'), show = inp.type === 'password';
+    inp.type = show ? 'text' : 'password'; eye.setAttribute('aria-pressed', show); inp.focus();
+    return;
+  }
+  if (e.target.id === 'runOne') {
+    if (f.status === 'locked') { submitPassword(f); return; }
+    enqueue(f); if (phone.matches) setPanel(false);
+  }
   if (e.target.id === 'applyAll') {
     let n = 0;
     files.forEach(x => { if (x !== f && x.ext === f.ext && (x.status === 'wait' || x.status === 'fail')) { x.target = f.target; x.opts = { ...f.opts }; n++; } });
     toast(n ? `${n}개에 적용했어요` : '같은 형식 파일이 없어요'); renderRows();
   }
 });
+$('#panel').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.id === 'pwInput') { e.preventDefault(); const f = byId(sel); if (f) submitPassword(f); }
+});
+$('#panel').addEventListener('change', e => {
+  if (e.target.id !== 'pwAll') return;
+  pwAll = e.target.checked;
+  if (!pwAll) sharedPassword = null;
+});
+function submitPassword(f) {
+  const inp = $('#pwInput'), pw = inp?.value || '';
+  if (!pw) {
+    $('#pwMsg').textContent = '암호를 입력하세요';
+    $('.pw-field')?.classList.remove('shake'); void inp.offsetWidth; $('.pw-field')?.classList.add('shake', 'bad');
+    inp.focus(); return;
+  }
+  f.opts.password = pw; f.pwWrong = false;
+  let n = 0;
+  if ($('#pwAll')?.checked) {
+    pwAll = true; sharedPassword = pw;
+    for (const x of files) {
+      if (x === f || catOf(x.ext) !== 'arc') continue;
+      x.opts.password = pw;
+      if (x.status === 'locked') { x.pwWrong = false; enqueue(x); n++; }
+    }
+  }
+  enqueue(f);
+  if (n) toast(`압축 파일 ${n + 1}개에 같은 암호를 넣었어요`);
+  renderRows(); renderPanel(false);
+  if (phone.matches) setPanel(false);
+}
 $('#panel').addEventListener('input', e => {
   if (e.target.dataset.opt !== 'quality') return;
   const f = byId(sel); if (!f) return;
@@ -294,7 +355,9 @@ function addFiles(list) {
     if (!file.size && !file.type && !/\.[a-z0-9]+$/i.test(file.name)) continue; // 폴더
     const ext = extOf(file.name);
     const target = defaultTarget(ext);
-    files.push({ id: ++uid, file, name: file.name, ext, target, opts: { ...DEFAULT_OPTS }, status: target ? 'wait' : 'unknown', p: 0, err: target ? '' : '지원하지 않는 형식이에요' });
+    const opts = { ...DEFAULT_OPTS };
+    if (sharedPassword && catOf(ext) === 'arc') opts.password = sharedPassword;
+    files.push({ id: ++uid, file, name: file.name, ext, target, opts, status: target ? 'wait' : 'unknown', p: 0, err: target ? '' : '지원하지 않는 형식이에요' });
     last = uid;
   }
   if (last) {

@@ -13,15 +13,40 @@ async function make7z() {
   return { m, log };
 }
 
-function run(sz, args) {
+// 암호를 모를 때 넣는 값. 7-Zip이 입력을 기다리며 멈추지 않게 하고, 틀린 암호로 처리되게 한다.
+const NO_PASSWORD = '\u0001uc-no-password';
+
+function run(sz, args, ctx = {}) {
+  sz.log.length = 0;
   try { sz.m.callMain(args); }
-  catch (e) { if (!(e && (e.name === 'ExitStatus' || 'status' in e))) throw e; if (e.status) throw fail(sz.log); }
+  catch (e) {
+    // 헤더까지 암호화된 7z는 틀린 암호에서 C++ 예외(숫자)로 끝나고 로그가 남지 않는다
+    if (typeof e === 'number') throw ctx.headerEncrypted ? pwError(ctx) : new Error('압축 파일을 열지 못했어요');
+    if (!(e && (e.name === 'ExitStatus' || 'status' in e))) throw e;
+    if (e.status) throw fail(sz.log, ctx);
+  }
+  if (/Wrong password|Data Error in encrypted|CRC Failed in encrypted/i.test(sz.log.join('\n'))) throw pwError(ctx);
 }
-function fail(log) {
+function pwError(ctx) {
+  return ctx.password
+    ? Object.assign(new Error('암호가 틀렸어요'), { code: 'WRONG_PASSWORD' })
+    : Object.assign(new Error('암호가 걸린 압축 파일이에요'), { code: 'NEED_PASSWORD' });
+}
+function fail(log, ctx) {
   const t = log.join('\n');
-  if (/Wrong password|encrypted|Can not open encrypted/i.test(t)) return new Error('암호가 걸린 압축 파일은 아직 지원하지 않아요');
+  if (/Wrong password|encrypted|Can not open encrypted/i.test(t)) return pwError(ctx);
   if (/Can not open the file as archive|Unsupported/i.test(t)) return new Error('압축 파일을 열지 못했어요');
   return new Error('압축 처리 중 오류가 났어요');
+}
+
+// 7z 파일의 끝 헤더에 AES 코덱(06 F1 07 01)이 있으면 파일 목록까지 암호화된 것
+function is7zHeaderEncrypted(bytes) {
+  if (bytes.length < 32 || bytes[0] !== 0x37 || bytes[1] !== 0x7a) return false;
+  const v = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const off = Number(v.getBigUint64(12, true)), size = Number(v.getBigUint64(20, true));
+  const start = 32 + off, end = Math.min(bytes.length, start + size);
+  for (let i = start; i + 3 < end; i++) if (bytes[i] === 0x06 && bytes[i + 1] === 0xf1 && bytes[i + 2] === 0x07 && bytes[i + 3] === 0x01) return true;
+  return false;
 }
 
 function walk(FS, dir) {
@@ -34,22 +59,26 @@ function walk(FS, dir) {
   return n;
 }
 
-export async function convertArchive(file, ext, target, progress) {
+export async function convertArchive(file, ext, target, progress, opts = {}) {
   progress?.(0.05);
   const sz = await make7z();
   const { FS } = sz.m;
   const inName = '/work/in.' + (ext === 'gz' ? 'gz' : ext);
   FS.mkdir('/work'); FS.mkdir('/work/x');
-  FS.writeFile(inName, new Uint8Array(await file.arrayBuffer()));
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  FS.writeFile(inName, bytes);
   progress?.(0.2);
 
   // 풀기
-  run(sz, ['x', inName, '-o/work/x', '-y', '-bso0', '-bsp0']);
+  const password = opts.password || '';
+  const pw = ['-p' + (password || NO_PASSWORD)];
+  const ctx = { password, headerEncrypted: is7zHeaderEncrypted(bytes) };
+  run(sz, ['x', inName, '-o/work/x', '-y', '-bso0', '-bsp0', ...pw], ctx);
   // .tar.gz 처럼 안에 tar 하나만 있으면 한 번 더 푼다
   const inner = FS.readdir('/work/x').filter(n => n !== '.' && n !== '..');
   if (inner.length === 1 && /\.tar$/i.test(inner[0]) && !FS.isDir(FS.stat(`/work/x/${inner[0]}`).mode)) {
     FS.mkdir('/work/y');
-    run(sz, ['x', `/work/x/${inner[0]}`, '-o/work/y', '-y', '-bso0', '-bsp0']);
+    run(sz, ['x', `/work/x/${inner[0]}`, '-o/work/y', '-y', '-bso0', '-bsp0', ...pw], ctx);
     FS.unlink(`/work/x/${inner[0]}`); FS.rmdir('/work/x');
     FS.rename('/work/y', '/work/x');
   }

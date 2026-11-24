@@ -33,7 +33,7 @@ export async function convert(file, ext, target, opts = {}, progress = () => {},
     r = await convertData(file, ext, target, opts);
   } else if (cat === 'arc') {
     const { convertArchive } = await import('./archive.js');
-    r = await convertArchive(file, ext, target, progress);
+    r = await convertArchive(file, ext, target, progress, opts);
   } else {
     throw new Error('지원하지 않는 형식이에요');
   }

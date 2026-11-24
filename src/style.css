@@ -281,3 +281,27 @@ body.formats-open .cat{animation:fadeUp .5s var(--ease) both}
 .dl.save{color:var(--accent);background:var(--accent-soft)}
 
 @media (max-width:699px){.toast{bottom:calc(env(safe-area-inset-bottom,0px) + 84px)}}
+
+/* 압축 파일 암호 */
+.pill.lock{display:inline-flex;align-items:center;gap:4px;color:var(--accent);background:var(--accent-soft)}
+.pill.lock svg{width:12px;height:12px}
+.pw{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;padding:16px;border-radius:14px;background:var(--accent-soft)}
+.pw .sub{margin:0}
+.pw .sub svg{width:14px;height:14px;color:var(--accent)}
+.pw-field{position:relative;min-width:0;display:flex;align-items:center;background:var(--bg);border-radius:10px;box-shadow:0 0 0 1.5px var(--line);transition:box-shadow .25s}
+.pw-field:focus-within{box-shadow:0 0 0 2px var(--accent)}
+.pw-field.bad{box-shadow:0 0 0 2px var(--bad)}
+.pw-field.shake{animation:shake .4s var(--ease)}
+@keyframes shake{20%{transform:translateX(-6px)}40%{transform:translateX(5px)}60%{transform:translateX(-3px)}80%{transform:translateX(2px)}}
+.pw-field input{flex:1;min-width:0;width:100%;border:0;background:none;padding:11px 12px;font-size:16px;outline:none;color:var(--ink)}
+.pw-field input::placeholder{color:var(--faint)}
+.pw-eye{border:0;background:none;color:var(--faint);padding:8px 10px;line-height:0;transition:color .2s}
+.pw-eye:hover,.pw-eye[aria-pressed="true"]{color:var(--ink)}
+.pw-eye svg{width:18px;height:18px}
+.pw-msg{margin:0;font-size:13px;color:var(--dim)}
+.pw-field.bad + .pw-msg{color:var(--bad)}
+.check{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:500;cursor:pointer;user-select:none}
+.check input{appearance:none;-webkit-appearance:none;flex:none;width:20px;height:20px;margin:0;border-radius:6px;background:var(--bg);box-shadow:inset 0 0 0 1.5px var(--faint);display:grid;place-items:center;cursor:pointer;transition:background-color .25s,box-shadow .25s}
+.check input::after{content:"";width:10px;height:6px;border:2.2px solid var(--accent-ink);border-top:0;border-right:0;transform:translateY(-1px) rotate(-45deg) scale(0);transition:transform .3s var(--ease)}
+.check input:checked{background:var(--accent);box-shadow:none}
+.check input:checked::after{transform:translateY(-1px) rotate(-45deg) scale(1)}
