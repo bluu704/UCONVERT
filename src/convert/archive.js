@@ -5,7 +5,7 @@ import wasmUrl from '7z-wasm/7zz.wasm?url';
 import { MIME } from '../formats.js';
 
 let wasmBin = null;
-async function make7z() {
+export async function make7z() {
   if (!wasmBin) wasmBin = fetch(wasmUrl).then(r => r.arrayBuffer());
   const log = [];
   // 실행할 때마다 새 인스턴스 (7-Zip은 한 번 실행하면 상태가 남는다)
@@ -14,9 +14,9 @@ async function make7z() {
 }
 
 // 암호를 모를 때 넣는 값. 7-Zip이 입력을 기다리며 멈추지 않게 하고, 틀린 암호로 처리되게 한다.
-const NO_PASSWORD = '\u0001uc-no-password';
+export const NO_PASSWORD = '\u0001uc-no-password';
 
-function run(sz, args, ctx = {}) {
+export function run(sz, args, ctx = {}) {
   sz.log.length = 0;
   try { sz.m.callMain(args); }
   catch (e) {
@@ -40,7 +40,7 @@ function fail(log, ctx) {
 }
 
 // 7z 파일의 끝 헤더에 AES 코덱(06 F1 07 01)이 있으면 파일 목록까지 암호화된 것
-function is7zHeaderEncrypted(bytes) {
+export function is7zHeaderEncrypted(bytes) {
   if (bytes.length < 32 || bytes[0] !== 0x37 || bytes[1] !== 0x7a) return false;
   const v = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const off = Number(v.getBigUint64(12, true)), size = Number(v.getBigUint64(20, true));
@@ -51,7 +51,7 @@ function is7zHeaderEncrypted(bytes) {
 
 // 압축 폭탄 방지: 풀기 전에 전체 크기와 파일 수를 본다 (브라우저 메모리 안에서 풀기 때문)
 const MAX_UNPACKED = 2 * 1024 ** 3, MAX_FILES = 100000, MAX_RATIO = 1000;
-function checkSize(sz, inName, pw, ctx, packed) {
+export function checkSize(sz, inName, pw, ctx, packed) {
   run(sz, ['l', '-slt', '-ba', inName, ...pw], ctx);
   let total = 0, count = 0;
   for (const line of sz.log) {
@@ -64,7 +64,7 @@ function checkSize(sz, inName, pw, ctx, packed) {
   }
 }
 
-function walk(FS, dir) {
+export function walk(FS, dir) {
   let n = 0;
   for (const name of FS.readdir(dir)) {
     if (name === '.' || name === '..') continue;

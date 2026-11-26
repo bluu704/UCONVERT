@@ -26,7 +26,7 @@
 <div class="wrap">
   <header>
     <div class="brand">
-      <button class="logo" id="modeToggle" type="button" aria-label="UCONVERT · 변환과 PDF 도구 바꾸기">
+      <button class="logo" id="modeToggle" type="button" aria-label="UCONVERT · 변환과 도구 바꾸기">
         <svg class="mark" viewBox="0 0 64 64" aria-hidden="true">
         <rect width="64" height="64" rx="16" fill="url(#lg)"/>
         <path d="M42 22v11a10 10 0 0 1-20 0V17" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
@@ -37,7 +37,7 @@
       </button>
       <nav class="modes" id="modes" aria-label="모드">
         <button type="button" data-mode="conv" aria-pressed="true">변환</button>
-        <button type="button" data-mode="tool" aria-pressed="false">PDF 도구</button>
+        <button type="button" data-mode="tool" aria-pressed="false">도구</button>
         <span class="bar" id="modeBar" aria-hidden="true"></span>
       </nav>
     </div>
@@ -82,7 +82,8 @@
 
   <div class="app tapp" id="tapp" hidden>
     <div class="main">
-      <nav class="tnav" id="tnav" aria-label="PDF 도구"></nav>
+      <nav class="tcats" id="tcats" aria-label="도구 갈래"></nav>
+      <nav class="tnav" id="tnav" aria-label="도구"></nav>
       <div class="tbar" id="tbar" hidden></div>
       <div class="tstage scroll" id="tstage"></div>
     </div>

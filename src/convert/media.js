@@ -24,7 +24,7 @@ export async function convertMedia(file, ext, target, opts, progress, signal) {
 /* ---------- Mediabunny ---------- */
 // 브라우저에 인코더가 없으면 WebAssembly 인코더를 끼운다
 const registered = new Set();
-async function ensureEncoder(MB, codec) {
+export async function ensureEncoder(MB, codec) {
   if (registered.has(codec) || await MB.canEncodeAudio(codec).catch(() => false)) return;
   if (codec === 'mp3') (await import('@mediabunny/mp3-encoder')).registerMp3Encoder();
   else if (codec === 'aac') (await import('@mediabunny/aac-encoder')).registerAacEncoder();

@@ -1,5 +1,6 @@
 // PDF 도구 화면 (변환 ↔ PDF 도구 전환 포함)
 import { thumb, openDoc, pageSizes, dropEntry, findMargins } from './view.js';
+import * as more from './more.js';
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -36,11 +37,19 @@ const IC = {
 const TOOLS = [['merge', '합치기'], ['split', '나누기'], ['org', '쪽 정리'], ['num', '쪽 번호'], ['wm', '워터마크'], ['pw', '암호'], ['crop', '자르기·여백']];
 const TOOL_NAME = Object.fromEntries(TOOLS);
 const MULTI = new Set(['merge', 'pw']);
+const CATS = [['pdf', 'PDF', '--c-doc'], ['img', '이미지', '--c-img'], ['media', '영상·오디오', '--c-aud'], ['arc', '압축', '--c-arc']];
+const CAT_IC = {
+  pdf: sv('<path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/>', 'stroke-width="2.2"'),
+  img: sv('<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/>', 'stroke-width="2.2"'),
+  media: sv('<rect x="3" y="5" width="14" height="14" rx="2"/><path d="M17 10l4-3v10l-4-3"/>', 'stroke-width="2.2"'),
+  arc: sv('<path d="M21 8v12a1 1 0 01-1 1H4a1 1 0 01-1-1V8"/><path d="M1 3h22v5H1zM10 12h4"/>', 'stroke-width="2.2"'),
+};
 const GROUP_C = ['var(--accent)', 'var(--c-aud)', 'var(--c-vid)', 'var(--c-img)', 'var(--c-book)', 'var(--c-data)'];
 
 /* ---------- 상태 ---------- */
 let tid = 0;
 const S = {
+  cat: CATS.some(c => c[0] === LS.get('uc-cat')) ? LS.get('uc-cat') : 'pdf', p: 0, note: '',
   tool: TOOL_NAME[LS.get('uc-tool')] ? LS.get('uc-tool') : 'merge',
   files: [], cur: null,
   mergeName: '',
@@ -103,11 +112,16 @@ function hydrate(root) {
   root.querySelectorAll('img[data-th]:not([src])').forEach(el => io.observe(el));
 }
 
+function renderCats() {
+  $('#tcats').innerHTML = CATS.map(([k, l, c]) => `<button class="tc ${k === S.cat ? 'on' : ''}" data-cat="${k}" aria-pressed="${k === S.cat}" style="--c:var(${c})"><span class="ic">${CAT_IC[k]}</span>${l}</button>`).join('');
+}
 function renderNav() {
+  if (S.cat !== 'pdf') { $('#tnav').innerHTML = more.navHTML(); return; }
   $('#tnav').innerHTML = TOOLS.map(([k, label]) => `<button class="tn ${k === S.tool ? 'on' : ''}" data-tool="${k}" aria-pressed="${k === S.tool}">${IC[k]}<span>${label}</span></button>`).join('');
 }
 function renderBar() {
   const bar = $('#tbar'), f = curFile();
+  if (S.cat !== 'pdf') { const h = more.barHTML(); bar.hidden = !h; bar.innerHTML = h || ''; return; }
   if (MULTI.has(S.tool) || !f) { bar.innerHTML = ''; bar.hidden = true; return; }
   bar.hidden = false;
   const many = S.files.length > 1;
@@ -233,8 +247,12 @@ function stageCrop(f) {
   const cap = `${Math.round(w / MM)} × ${Math.round(h / MM)} mm · ${S.crop.same ? '모든 장' : `${v + 1}쪽`}`;
   return `<div class="big ${S.crop.mode}">${html}</div><div class="cap ${bad ? 'bad' : ''}">${bad ? '너무 많이 잘랐어요' : cap}</div>${pager(f)}`;
 }
-function renderStage() {
+function renderStage(anim) {
   const st = $('#tstage'), f = curFile(), keep = st.scrollTop;
+  if (S.cat !== 'pdf') {
+    st.innerHTML = `<div class="tview ${anim ? 'anim' : ''}" data-tool="${S.cat}">${more.stageHTML()}</div>`;
+    st.scrollTop = keep; more.afterStage(st); return;
+  }
   let html;
   if (S.tool === 'merge') html = stageMerge();
   else if (S.tool === 'pw') html = stagePw();
@@ -243,7 +261,7 @@ function renderStage() {
   else if (f.bad) html = `<div class="tmsg"><b>${esc(f.bad)}</b></div>`;
   else if (!f.pages || !f.sizes) html = '<div class="tmsg"><span class="spin"></span></div>';
   else html = ({ split: stageSplit, org: stageOrg, num: stageNum, wm: stageWm, crop: stageCrop })[S.tool](f);
-  st.innerHTML = `<div class="tview" data-tool="${S.tool}">${html}</div>`;
+  st.innerHTML = `<div class="tview ${anim ? 'anim' : ''}" data-tool="${S.tool}">${html}</div>`;
   st.scrollTop = keep;
   hydrate(st);
 }
@@ -338,13 +356,15 @@ function actionLabel() {
 function canRun() {
   const f = curFile();
   if (S.busy) return false;
+  if (S.cat !== 'pdf') return more.canRun();
   if (S.tool === 'merge') return S.files.filter(usable).length >= 2;
   if (S.tool === 'pw') return S.pw.mode === 'lock' ? S.files.some(usable) : S.files.some(x => x.locked);
   return usable(f);
 }
 function renderApply() {
   const a = $('#tapply'); if (!a) return;
-  a.innerHTML = `${S.err ? `<p class="t-err">${esc(S.err)}</p>` : ''}<button class="btn btn-primary" id="tRun" ${canRun() ? '' : 'disabled'}>${S.busy ? '<span class="spin sm"></span>처리 중' : actionLabel()}</button>`;
+  const lab = S.cat === 'pdf' ? actionLabel() : more.label();
+  a.innerHTML = `${S.err ? `<p class="t-err">${esc(S.err)}</p>` : S.note ? `<p class="t-note">${esc(S.note)}</p>` : ''}<button class="btn btn-primary" id="tRun" ${canRun() ? '' : 'disabled'}>${S.busy ? `<span class="spin sm"></span>처리 중${S.p > 0.01 ? ` ${Math.round(S.p * 100)}%` : ''}` : lab}</button>`;
 }
 function placeInd(segEl) {
   const ind = segEl.querySelector('.ind'), on = segEl.querySelector('[aria-checked="true"]'); if (!ind || !on) return;
@@ -362,15 +382,32 @@ function renderPanel(animate) {
   const P = $('#tpanel'); const open = P.classList.contains('open');
   const keep = P.querySelector('.swap')?.scrollTop || 0;
   P.classList.remove('anim'); if (animate) { void P.offsetWidth; P.classList.add('anim'); }
-  P.innerHTML = `<button class="p-title" id="tpTitle" aria-expanded="${open}"><span class="grab"></span><span class="t">${TOOL_NAME[S.tool]}</span><span class="peek">${esc(curFile()?.name || '')}</span>${IC.chev.replace('<svg', '<svg class="chev"')}</button>
-    <div class="swap scroll">${panelBody()}</div><div class="apply col" id="tapply"></div>`;
+  P.innerHTML = `<button class="p-title" id="tpTitle" aria-expanded="${open}"><span class="grab"></span><span class="t">${S.cat === 'pdf' ? TOOL_NAME[S.tool] : more.title()}</span><span class="peek">${S.cat === 'pdf' ? esc(curFile()?.name || '') : ''}</span>${IC.chev.replace('<svg', '<svg class="chev"')}</button>
+    <div class="swap scroll">${S.cat === 'pdf' ? panelBody() : more.panelHTML()}</div><div class="apply col" id="tapply"></div>`;
   if (!animate) P.querySelector('.swap').scrollTop = keep;
   renderApply(); placeAll(true); hydrate(P);
 }
 // 패널만 다시 그리면 이미 그려 둔 썸네일도 다시 그려지지 않게 하이드레이트만 한다
 function render(animate) {
   if (!$('#tapp') || $('#tapp').hidden) return;
-  renderNav(); renderBar(); renderStage(); renderPanel(animate);
+  const tp = $('#tpicker');
+  tp.accept = S.cat === 'pdf' ? 'application/pdf,.pdf' : more.accept();
+  tp.multiple = !(S.cat === 'arc' && more.title() === '골라 받기');
+  renderCats(); renderNav(); renderBar(); renderStage(animate); renderPanel(animate);
+}
+// more.js가 부르는 다시 그리기
+function refresh(o) {
+  if (!$('#tapp') || $('#tapp').hidden) return;
+  if (o.all) return render();
+  if (o.bar) renderBar();
+  if (o.stage) renderStage();
+  if (o.panel) renderPanel(false); else if (o.apply) renderApply();
+}
+export function addToolFiles(list) { if (S.cat === 'pdf') addPdfs(list); else more.add(list); }
+function pickCat(k) {
+  if (k === S.cat) return;
+  S.cat = k; S.err = ''; S.note = ''; LS.set('uc-cat', k);
+  render(true);
 }
 
 /* ---------- 동작 ---------- */
@@ -381,10 +418,11 @@ function setTPanel(open) {
   $('#tpTitle')?.setAttribute('aria-expanded', open); if (open) requestAnimationFrame(() => placeAll(true));
 }
 function pickTool(k) {
+  if (S.cat !== 'pdf') { more.pickTool(k); S.err = ''; S.note = ''; render(true); return; }
   if (k === S.tool) return;
   S.tool = k; S.err = ''; LS.set('uc-tool', k);
   if (!MULTI.has(k) && !usable(curFile())) { const u = S.files.find(usable); if (u) { S.cur = u.id; resetForFile(); } }
-  renderNav(); renderBar(); renderStage(); renderPanel(true);
+  renderNav(); renderBar(); renderStage(true); renderPanel(true);
   const btn = document.querySelector(`#tnav [data-tool="${k}"]`); btn?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
 }
 function saveAs(blob, name) {
@@ -394,8 +432,17 @@ function saveAs(blob, name) {
 }
 async function run() {
   if (!canRun()) return;
-  S.busy = true; S.err = ''; renderApply();
+  S.busy = true; S.err = ''; S.note = ''; S.p = 0; renderApply();
+  const prog = (p) => { S.p = p; const b = $('#tRun'); if (b && S.busy) b.innerHTML = `<span class="spin sm"></span>처리 중 ${Math.round(p * 100)}%`; };
   try {
+    if (S.cat !== 'pdf') {
+      const r = await more.exec(prog);
+      if (r.each) { for (const [i, x] of r.each.entries()) { setTimeout(() => saveAs(x.blob, x.name), i * 350); } }
+      else { saveAs(r.blob, r.name); if (r.cleanup) setTimeout(r.cleanup, 60000); }
+      S.busy = false; renderApply();
+      const b = $('#tRun'); if (b) { b.classList.add('done'); b.textContent = '받았어요'; setTimeout(() => { if (b.isConnected) { b.classList.remove('done'); b.textContent = more.label(); } }, 2200); }
+      return;
+    }
     const ops = await import('./ops.js');
     const f = curFile();
     let r;
@@ -554,7 +601,9 @@ export function initTools() {
   window.addEventListener('resize', () => { placeBar(true); if (isToolMode()) placeAll(true); });
   document.fonts?.ready.then(() => placeBar(true));
 
-  $('#tpicker').addEventListener('change', e => { addPdfs(e.target.files); e.target.value = ''; });
+  more.init({ S, IC, esc, segHTML, sub, check, pwField, refresh });
+  $('#tpicker').addEventListener('change', e => { addToolFiles(e.target.files); e.target.value = ''; });
+  $('#tcats').addEventListener('click', e => { const b = e.target.closest('[data-cat]'); if (b) pickCat(b.dataset.cat); });
   $('#wmPicker').addEventListener('change', e => {
     const file = e.target.files[0]; e.target.value = ''; if (!file) return;
     if (!/^image\/(png|jpeg)$/.test(file.type)) { S.err = '워터마크 이미지는 PNG나 JPG만 돼요'; renderApply(); return; }
@@ -563,11 +612,12 @@ export function initTools() {
     renderStage(); renderPanel(false);
   });
   $('#tnav').addEventListener('click', e => { const b = e.target.closest('[data-tool]'); if (b) pickTool(b.dataset.tool); });
-  $('#tbar').addEventListener('click', e => { if (e.target.closest('#tmore')) $('#tpicker').click(); });
-  $('#tbar').addEventListener('change', e => { if (e.target.id === 'tcur') { S.cur = +e.target.value; resetForFile(); S.err = ''; render(); } });
+  $('#tbar').addEventListener('click', e => { if (S.cat !== 'pdf') return more.onBar(e.target, 'click'); if (e.target.closest('#tmore')) $('#tpicker').click(); });
+  $('#tbar').addEventListener('change', e => { if (S.cat !== 'pdf') return more.onBar(e.target, 'change'); if (e.target.id === 'tcur') { S.cur = +e.target.value; resetForFile(); S.err = ''; render(); } });
 
   const stage = $('#tstage');
   stage.addEventListener('click', e => {
+    if (S.cat !== 'pdf') { more.onStageClick(e.target); return; }
     const rm = e.target.closest('[data-rm]'); if (rm) { removeFile(+rm.dataset.rm); return; }
     const go = e.target.closest('[data-go]'); if (go) { pickTool(go.dataset.go); return; }
     const pv = e.target.closest('[data-view]');
@@ -585,7 +635,12 @@ export function initTools() {
   P.addEventListener('click', e => {
     const t = e.target;
     if (t.closest('#tpTitle')) { if (phone.matches) setTPanel(!P.classList.contains('open')); return; }
+    if (t.closest('#tRun')) { run(); return; }
+    const eye0 = t.closest('[data-eye]');
+    if (eye0) { const inp = eye0.parentElement.querySelector('input'); const show = inp.type === 'password'; inp.type = show ? 'text' : 'password'; eye0.setAttribute('aria-pressed', show); return; }
     const sg = t.closest('.seg [data-v]');
+    if (sg && sg.closest('.seg').dataset.seg.startsWith('m:')) { S.err = ''; S.note = ''; more.onSeg(sg.closest('.seg').dataset.seg.slice(2), sg.dataset.v); return; }
+    if (S.cat !== 'pdf') { S.note = ''; more.onPanelClick(t); return; }
     if (sg) {
       const path = sg.closest('.seg').dataset.seg; const old = getPath(path);
       const v = typeof old === 'number' ? +sg.dataset.v : sg.dataset.v;
@@ -609,6 +664,7 @@ export function initTools() {
   });
   P.addEventListener('input', e => {
     const t = e.target;
+    if (S.cat !== 'pdf') { S.err = ''; more.onInput(t); return; }
     if (t.dataset.in) {
       const v = 'num' in t.dataset ? (t.value === '' ? '' : +t.value) : t.value;
       setPath(t.dataset.in, v); S.err = '';
@@ -629,6 +685,7 @@ export function initTools() {
   });
   P.addEventListener('change', e => {
     const t = e.target;
+    if (t.dataset.chk?.startsWith('m:')) { S.err = ''; more.onCheck(t.dataset.chk.slice(2), t.checked); return; }
     if (t.dataset.chk) {
       setPath(t.dataset.chk, t.checked);
       if (t.dataset.chk === 'crop.same' && !t.checked) { S.crop.trim.per = {}; S.crop.pad.per = {}; }

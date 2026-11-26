@@ -198,7 +198,7 @@ export async function imagesToPdf(canvases, opts = {}) {
   return new Blob([await pdf.save()], { type: 'application/pdf' });
 }
 
-function hasAlpha(c) {
+export function hasAlpha(c) {
   const { data } = c.getContext('2d').getImageData(0, 0, c.width, c.height);
   for (let i = 3; i < data.length; i += 4 * 7) if (data[i] < 250) return true;
   return false;
