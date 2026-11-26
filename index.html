@@ -25,18 +25,22 @@
 
 <div class="wrap">
   <header>
-    <a class="logo" href="/" aria-label="UCONVERT">
-      <svg class="mark" viewBox="0 0 64 64" aria-hidden="true">
+    <div class="brand">
+      <button class="logo" id="modeToggle" type="button" aria-label="UCONVERT · 변환과 PDF 도구 바꾸기">
+        <svg class="mark" viewBox="0 0 64 64" aria-hidden="true">
         <rect width="64" height="64" rx="16" fill="url(#lg)"/>
         <path d="M42 22v11a10 10 0 0 1-20 0V17" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
         <path d="M15 23l7-7 7 7" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
         <circle cx="42" cy="17" r="3.5" fill="#fff"/>
       </svg>
-      <span class="word" aria-hidden="true">
-        <span class="u">U</span>C<span class="o"><svg viewBox="0 0 24 24" fill="none" stroke="url(#og)" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 0 1-13.7 5.6"/><path d="M4 12a8 8 0 0 1 13.7-5.6"/><path d="M17.7 2.6v4h-4"/><path d="M6.3 21.4v-4h4"/></svg></span>NVERT
-        <small>ANY → ANY</small>
-      </span>
-    </a>
+        <span class="word" aria-hidden="true"><span class="u">U</span>C<span class="o"><svg viewBox="0 0 24 24" fill="none" stroke="url(#og)" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 0 1-13.7 5.6"/><path d="M4 12a8 8 0 0 1 13.7-5.6"/><path d="M17.7 2.6v4h-4"/><path d="M6.3 21.4v-4h4"/></svg></span>NVERT</span>
+      </button>
+      <nav class="modes" id="modes" aria-label="모드">
+        <button type="button" data-mode="conv" aria-pressed="true">변환</button>
+        <button type="button" data-mode="tool" aria-pressed="false">PDF 도구</button>
+        <span class="bar" id="modeBar" aria-hidden="true"></span>
+      </nav>
+    </div>
     <div class="tools">
       <button class="ghost" id="openFormats" aria-expanded="false" aria-controls="sheet">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></svg>
@@ -50,7 +54,7 @@
     </div>
   </header>
 
-  <div class="app">
+  <div class="app" id="capp">
     <div class="main">
       <label class="drop" id="drop" for="picker">
         <span class="plus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
@@ -75,6 +79,18 @@
     <div class="divider" aria-hidden="true"></div>
     <aside class="panel" id="panel" aria-label="변환 설정"></aside>
   </div>
+
+  <div class="app tapp" id="tapp" hidden>
+    <div class="main">
+      <nav class="tnav" id="tnav" aria-label="PDF 도구"></nav>
+      <div class="tbar" id="tbar" hidden></div>
+      <div class="tstage scroll" id="tstage"></div>
+    </div>
+    <div class="divider" aria-hidden="true"></div>
+    <aside class="panel" id="tpanel" aria-label="도구 설정"></aside>
+  </div>
+  <input type="file" id="tpicker" accept="application/pdf,.pdf" multiple hidden>
+  <input type="file" id="wmPicker" accept="image/png,image/jpeg" hidden>
 </div>
 
 <div class="pscrim" id="pscrim"></div>

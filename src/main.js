@@ -1,6 +1,7 @@
 import './style.css';
 import { CATS, catOf, extOf, targetsFor, defaultTarget } from './formats.js';
 import { convert, friendlyError } from './convert/index.js';
+import { initTools, isToolMode, addPdfs } from './tools/ui.js';
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -443,7 +444,7 @@ const hasFiles = e => [...(e.dataTransfer?.types || [])].includes('Files');
 window.addEventListener('dragenter', e => { if (!hasFiles(e)) return; e.preventDefault(); if (++dc === 1) { overlay.classList.add('show'); drop.classList.add('over'); } });
 window.addEventListener('dragover', e => { if (hasFiles(e)) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } });
 window.addEventListener('dragleave', e => { if (!hasFiles(e)) return; if (--dc <= 0) { dc = 0; overlay.classList.remove('show'); drop.classList.remove('over'); } });
-window.addEventListener('drop', e => { if (!hasFiles(e)) return; e.preventDefault(); dc = 0; overlay.classList.remove('show'); drop.classList.remove('over'); if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files); });
+window.addEventListener('drop', e => { if (!hasFiles(e)) return; e.preventDefault(); dc = 0; overlay.classList.remove('show'); drop.classList.remove('over'); if (e.dataTransfer.files.length) (isToolMode() ? addPdfs : addFiles)(e.dataTransfer.files); });
 
 /* 목록 순서 바꾸기 (마우스) */
 const finePtr = matchMedia('(pointer:fine)').matches;
@@ -543,5 +544,5 @@ window.addEventListener('beforeunload', e => { if (files.some(f => f.status === 
 // 지난번 큰 파일 임시본 정리
 import('./convert/media.js').then(m => m.cleanupOpfs()).catch(() => {});
 
-renderRows(); renderPanel(false); renderCats(); paintToggle();
+renderRows(); renderPanel(false); renderCats(); paintToggle(); initTools();
 document.fonts?.ready.then(placeAll);

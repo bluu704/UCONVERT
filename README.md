@@ -26,6 +26,20 @@
 - 영상·오디오는 브라우저 내장 인코더(WebCodecs)로 조금씩 읽고 써서 큰 파일도 처리합니다. Chrome·Edge가 가장 빠릅니다.
   AVI·GIF 출력과 일부 코덱은 ffmpeg.wasm을 씁니다(처음 한 번 약 31MB를 CDN에서 받습니다).
 
+## PDF 도구
+
+로고를 누르거나 로고 아래 **PDF 도구**를 누르면 바뀝니다. 모두 브라우저 안에서 처리합니다.
+
+| 도구 | 하는 일 |
+|---|---|
+| 합치기 | 여러 PDF를 목록 순서대로 하나로 (끌어서 순서 바꾸기) |
+| 나누기 | 쪽 범위(`1-3, 5, 8-`) / 한 쪽씩 / N쪽마다. 여러 개면 ZIP |
+| 쪽 정리 | 쪽 고르기, 돌리기, 지우기, 빈 쪽 넣기, 끌어서 순서 바꾸기 |
+| 쪽 번호 | 위치 6곳, 모양 4가지, 크기, 시작 번호, 표지 건너뛰기 |
+| 워터마크 | 글자(색·투명도·각도·크기) 또는 PNG·JPG 이미지 |
+| 암호 | AES-256 암호 걸기(인쇄·복사·수정 허용 고르기) / 암호 풀기 (qpdf WebAssembly) |
+| 자르기·여백 | 위·아래·왼쪽·오른쪽 mm로 자르거나 여백 넣기, 흰 여백 자동 찾기, 모든 장에 같게 또는 쪽마다 |
+
 ## Cloudflare Pages에 올리기
 
 Cloudflare 대시보드 → **Workers & Pages** → **Create** → **Pages** → **Connect to Git** → 이 저장소 선택 후:
@@ -70,5 +84,9 @@ src/
     media.js           오디오·영상 (Mediabunny, ffmpeg.wasm)
     data.js            표·데이터 (SheetJS 등)
     archive.js         압축 (7-Zip WebAssembly)
+  tools/
+    ui.js              PDF 도구 화면, 변환 ↔ 도구 전환
+    ops.js             PDF 도구 처리 (pdf-lib, qpdf)
+    view.js            썸네일·흰 여백 찾기 (pdf.js)
 public/fonts/          PDF용 나눔 글꼴 (SIL OFL)
 ```

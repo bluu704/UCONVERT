@@ -5,14 +5,14 @@ export const PAPER_PT = { A4: [595.28, 841.89], A5: [419.53, 595.28], B5: [498.9
 export const MARGIN_PT = { '좁게': 36, '보통': 64, '넓게': 96 };
 
 const fontCache = {};
-async function fontBytes(name) {
+export async function fontBytes(name) {
   if (!fontCache[name]) fontCache[name] = fetch(`/fonts/${name}.ttf`).then(r => { if (!r.ok) throw new Error('글꼴을 불러오지 못했어요'); return r.arrayBuffer(); });
   return fontCache[name];
 }
 
 // pdf-lib 기본 fontkit(1.x)은 한글 글꼴 서브셋을 깨뜨린다. fontkit 2를 pdf-lib 방식에 맞춰 연결한다.
 let fontkitShim = null;
-async function getFontkit() {
+export async function getFontkit() {
   if (fontkitShim) return fontkitShim;
   const fk = await import('fontkit');
   const base = fk.default || fk;
