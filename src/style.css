@@ -365,8 +365,8 @@ body.formats-open .cat{animation:fadeUp .5s var(--ease) both}
 .tdrop:hover .plus{transform:rotate(90deg)}
 .tdrop .plus svg{width:17px;height:17px}
 .tdrop b{font-weight:600}
-.tdrop.big{flex-direction:column;min-height:min(46vh,360px);margin-top:4px}
-.tdrop.big .plus{width:52px;height:52px}.tdrop.big .plus svg{width:24px;height:24px}
+.tdrop.large{flex-direction:column;min-height:min(46vh,360px);margin-top:4px}
+.tdrop.large .plus{width:52px;height:52px}.tdrop.large .plus svg{width:24px;height:24px}
 .tmsg{min-height:min(46vh,360px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:var(--dim)}
 .tmsg svg{width:28px;height:28px;color:var(--accent)}
 .spin{width:28px;height:28px;border-radius:50%;border:3px solid var(--raise);border-top-color:var(--accent);animation:spin .8s linear infinite;display:inline-block}
@@ -496,7 +496,7 @@ button.th:hover .frame{background:var(--hover)}
   .thumbs{grid-template-columns:repeat(auto-fill,minmax(86px,1fr));gap:14px 10px}
   .th.before::before{left:-7px}.th.after::after{right:-7px}
   .big{--H:clamp(220px,calc(100vh - 330px),560px)}
-  .tdrop.big{min-height:40vh}
+  .tdrop.large{min-height:40vh}
 }
 /* 썸네일이 칸 안에 맞게 (회전해도) */
 .th .frame,.tmini{position:relative}

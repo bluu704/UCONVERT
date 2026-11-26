@@ -132,7 +132,7 @@ function renderBar() {
     <button class="btn sm" id="tmore">다른 PDF</button>`;
 }
 
-const dropHTML = (big) => `<label class="tdrop ${big ? 'big' : ''}" for="tpicker"><span class="plus">${IC.plus}</span><b>PDF 추가</b></label>`;
+const dropHTML = (big) => `<label class="tdrop ${big ? 'large' : ''}" for="tpicker"><span class="plus">${IC.plus}</span><b>PDF 추가</b></label>`;
 function fileState(f) {
   if (f.bad) return `<span class="pill fail">${esc(f.bad)}</span>`;
   if (f.locked) return `<span class="pill lock">${IC.lock}암호 있음</span>`;

@@ -57,7 +57,7 @@ export function accept() {
   if (tool() === 'pick') return '.zip,.7z,.rar,.tar,.gz,.tgz,.bz2,.xz';
   return '';
 }
-const dropHTML = (big, label) => `<label class="tdrop ${big ? 'big' : ''}" for="tpicker"><span class="plus">${K.IC.plus}</span><b>${label}</b></label>`;
+const dropHTML = (big, label) => `<label class="tdrop ${big ? 'large' : ''}" for="tpicker"><span class="plus">${K.IC.plus}</span><b>${label}</b></label>`;
 
 /* ---------- 파일 넣기 ---------- */
 let imgQueue = Promise.resolve();
