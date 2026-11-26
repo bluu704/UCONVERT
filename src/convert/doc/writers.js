@@ -29,7 +29,7 @@ export async function writeDoc(doc, target, opts, progress) {
 function htmlPage(doc) {
   return `<!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
 <title>${escapeHtml(doc.title)}</title>
 <style>body{max-width:44em;margin:2em auto;padding:0 1em;font:17px/1.75 "Noto Serif KR","Nanum Myeongjo",serif;color:#1b1b1b}
 img{max-width:100%;height:auto}h1,h2,h3{line-height:1.3}pre{white-space:pre-wrap;background:#f4f4f4;padding:1em}

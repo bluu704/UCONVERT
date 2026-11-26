@@ -11,11 +11,15 @@ export async function readDoc(file, ext, progress) {
 }
 
 // 들어온 문서의 HTML에서 실행될 수 있는 것을 모두 뺀다 (결과물 HTML·EPUB을 열었을 때 스크립트가 돌지 않게)
-const DROP = 'script,style,link,meta,base,iframe,frame,frameset,object,embed,applet,form,input,button,select,textarea,noscript,template,portal,dialog';
+const DROP = 'script,style,link,meta,base,iframe,frame,frameset,object,embed,applet,form,input,button,select,textarea,noscript,template,portal,dialog,'
+  // SVG 애니메이션(set/animate)은 href를 javascript:로 바꿀 수 있고, use/foreignObject는 바깥 내용을 끌어온다
+  + 'animate,set,animatemotion,animatetransform,discard,use,foreignobject,handler,listener';
 const URL_ATTR = /^(href|src|xlink:href|action|formaction|poster|background|data|srcset|lowsrc|dynsrc)$/i;
 export function sanitizeHtml(html) {
   const d = new DOMParser().parseFromString(`<body>${html}</body>`, 'text/html');
-  d.querySelectorAll(DROP).forEach(e => e.remove());
+  // SVG 요소는 대소문자를 가려서(foreignObject) 선택자 대신 이름을 직접 비교한다
+  const drop = new Set(DROP.split(','));
+  for (const e of [...d.body.querySelectorAll('*')]) if (drop.has(e.localName.toLowerCase())) e.remove();
   for (const el of d.body.querySelectorAll('*')) {
     for (const a of [...el.attributes]) {
       const n = a.name.toLowerCase(), v = a.value.replace(/[\u0000-\u0020]+/g, '').toLowerCase();
@@ -23,12 +27,23 @@ export function sanitizeHtml(html) {
       if (URL_ATTR.test(n)) {
         const isImg = (n === 'src' || n.endsWith('href')) && /^(img|image)$/i.test(el.localName);
         const ok = v.startsWith('#') || /^https?:/.test(v) || /^mailto:/.test(v) || (isImg && /^data:image\/(png|jpe?g|gif|webp|bmp|avif|svg\+xml)[;,]/.test(v));
-        if (!ok) el.removeAttribute(a.name);
+        if (!ok || (isImg && v.startsWith('data:image/svg') && !safeSvgData(a.value))) el.removeAttribute(a.name);
       }
-      if (n === 'style' && /expression\(|url\s*\(|@import|behavior:/i.test(a.value)) el.removeAttribute(a.name);
+      if (n === 'style' && /expression|url\s*\(|@import|behavior|\\/i.test(a.value)) el.removeAttribute(a.name);
     }
   }
   return d.body.innerHTML;
+}
+
+// data: SVG 이미지 안에 스크립트·이벤트·외부 참조가 있으면 쓰지 않는다 (EPUB에서는 따로 파일로 열릴 수 있음)
+function safeSvgData(url) {
+  let t;
+  try {
+    const i = url.indexOf(',');
+    const body = url.slice(i + 1);
+    t = /;base64/i.test(url.slice(0, i)) ? atob(body.replace(/\s+/g, '')) : decodeURIComponent(body);
+  } catch { return false; }
+  return !/<script|<foreignobject|<iframe|<embed|<object|<set\b|<animate|\son[a-z]+\s*=|javascript:|href\s*=\s*["']?\s*(?![#"'\s]|data:image)/i.test(t);
 }
 
 async function readDocRaw(file, ext, progress) {
