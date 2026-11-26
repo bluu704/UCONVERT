@@ -15,7 +15,15 @@ export const TOOLS = {
   arc: [['pick', '골라 받기'], ['pack', '묶기']],
 };
 const NAMES = Object.fromEntries(Object.values(TOOLS).flat());
-const saved = (() => { try { return JSON.parse(LS.get('uc-tools2') || '{}'); } catch { return {}; } })();
+// 저장된 값은 실제 있는 도구 이름일 때만 쓴다
+const saved = (() => {
+  try {
+    const o = JSON.parse(LS.get('uc-tools2') || '{}'), out = {};
+    for (const c of Object.keys(TOOLS)) if (typeof o?.[c] === 'string' && TOOLS[c].some(t => t[0] === o[c])) out[c] = o[c];
+    return out;
+  } catch { return {}; }
+})();
+const MAX_PACK = 1.5 * 1024 ** 3, MAX_EACH = 20;
 const M = {
   tool: { img: 'compress', media: 'trim', arc: 'pick', ...saved },
   imgs: [], img: { cmp: 'q', q: 80, target: 1024 * 1024, fmt: 'auto', rs: 'long', pct: 50, long: 1920, pw: '', ph: '', lock: true, noUp: true,
@@ -71,7 +79,7 @@ export function add(list) {
       M.imgs.push(e); M.img.sel ??= e.id;
       imgQueue = imgQueue.then(async () => {
         try { Object.assign(e, await (await import('./imgops.js')).info(file, ext)); }
-        catch { e.bad = '이미지를 읽지 못했어요'; }
+        catch (err) { e.bad = err?.message === 'too big' ? '너무 큰 이미지예요' : '이미지를 읽지 못했어요'; }
         K.refresh({ stage: true, panel: true });
       });
     }
@@ -90,8 +98,13 @@ export function add(list) {
     K.S.err = file ? '' : '압축 파일(ZIP·7Z·RAR·TAR·GZ)을 넣어 주세요';
     if (file) { M.arc.file = { file, name: file.name, ext: extOf(file.name), size: file.size }; M.arc.pw = ''; openArchive(); }
   } else {
-    for (const file of all) { if (!file.size && !file.type && !/\.[^.]+$/.test(file.name)) continue; M.arc.packs.push({ id: ++mid, file, name: file.name, ext: extOf(file.name), size: file.size }); }
-    K.S.err = '';
+    let total = M.arc.packs.reduce((n, f) => n + f.size, 0); K.S.err = '';
+    for (const file of all) {
+      if (!file.size && !file.type && !/\.[^.]+$/.test(file.name)) continue;
+      if (total + file.size > MAX_PACK) { K.S.err = '합쳐서 1.5GB까지만 묶을 수 있어요'; break; }
+      total += file.size;
+      M.arc.packs.push({ id: ++mid, file, name: file.name, ext: extOf(file.name), size: file.size });
+    }
   }
   K.refresh({ all: true });
 }
@@ -556,6 +569,7 @@ export async function exec(progress) {
     const want = files.filter(e => !a.off.has(e.path)).map(e => e.path);
     const got = await ops.extract(a.file.file, a.file.ext, a.pw, want.length === files.length ? null : want, progress);
     const baseName = a.file.name.replace(/(\.tar)?\.[^.]+$/i, '');
+    if (a.mode === 'each' && got.length > MAX_EACH) throw new Error(`하나씩은 ${MAX_EACH}개까지 받을 수 있어요. ZIP 하나로 받아 주세요`);
     if (a.mode === 'each' || got.length === 1) return { each: got.map(g => ({ blob: new Blob([g.bytes]), name: g.path.split('/').pop() })) };
     return zipOf(got.map(g => ({ name: g.path, bytes: g.bytes })), `${baseName}_골라냄.zip`);
   }

@@ -8,9 +8,11 @@ const base = (n) => n.replace(/\.[^.]+$/, '');
 const canvas = (w, h) => { const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(w)); c.height = Math.max(1, Math.round(h)); return c; };
 
 // 목록에 보여 줄 작은 그림과 원래 크기, 들어 있는 정보
+const MAX_PIXELS = 150e6; // 1억 5천만 화소보다 크면 브라우저 메모리가 모자란다
 export async function info(file, ext) {
   const c = await decodeImage(file, ext);
   const w = c.width, h = c.height;
+  if (w * h > MAX_PIXELS) { c.width = c.height = 0; throw new Error('too big'); }
   const k = Math.min(1, 360 / Math.max(w, h));
   const t = canvas(w * k, h * k), x = t.getContext('2d');
   x.imageSmoothingQuality = 'high'; x.drawImage(c, 0, 0, t.width, t.height);
